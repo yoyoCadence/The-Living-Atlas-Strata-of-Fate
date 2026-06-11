@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🗺</text></svg>" />
+<title>活地圖：命運地層 — The Living Atlas</title>
+<style>
+  :root {
+    --ink: #e8e2d0;
+    --paper: rgba(24, 26, 34, 0.92);
+    --accent: #7fd4c1;
+    --warn: #e0a458;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0d14;
+    font-family: "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif; color: var(--ink); }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px;
+    margin: -3px; border-radius: 50%; background: rgba(232,226,208,.65); }
+  #scan-prompt { position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+    background: var(--paper); padding: 8px 16px; border-radius: 8px; border: 1px solid #3a4356;
+    font-size: 14px; display: none; }
+  #toast-zone { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; gap: 6px; align-items: center; max-width: 92vw; }
+  .toast { background: var(--paper); border: 1px solid #3a4356; border-left: 3px solid var(--accent);
+    padding: 8px 14px; border-radius: 6px; font-size: 13px; animation: fadein .3s;
+    max-width: 86vw; }
+  .toast.rumor { border-left-color: #b08ad4; font-style: italic; }
+  .toast.contradiction { border-left-color: var(--warn); }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-6px);} to { opacity: 1; } }
+  #destiny-ribbon { position: absolute; top: 12px; left: 12px; background: var(--paper);
+    border: 1px solid #3a4356; border-radius: 8px; padding: 8px 12px; font-size: 12px;
+    line-height: 1.7; min-width: 130px; }
+  #destiny-ribbon .title-line { color: var(--accent); font-weight: bold; font-size: 13px; }
+  #ability-bar { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; pointer-events: auto; }
+  .ability-slot { background: var(--paper); border: 1px solid #3a4356; border-radius: 8px;
+    padding: 6px 9px; font-size: 12px; opacity: .45; cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: 6px; min-height: 34px; max-width: 132px; position: relative; }
+  .ability-key { color: #aab; font-size: 10px; min-width: 10px; text-align: center; }
+  .ability-icon { width: 18px; height: 18px; color: var(--accent); display: inline-flex; flex: 0 0 auto; }
+  .ability-icon svg { width: 100%; height: 100%; display: block; }
+  .ability-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .ability-slot.unlocked { opacity: 1; border-color: var(--accent); }
+  .ability-slot.active { background: #2a4a42; box-shadow: 0 0 10px rgba(127,212,193,.5); }
+  #hint-corner { position: absolute; bottom: 12px; right: 12px; font-size: 11px;
+    color: rgba(232,226,208,.55); text-align: right; line-height: 1.6; }
+
+  /* ---------- Dialog ---------- */
+  #dialog-box { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
+    width: min(560px, 92vw); background: var(--paper); border: 1px solid #5a6378;
+    border-radius: 10px; padding: 14px 18px; z-index: 30; display: none; pointer-events: auto; }
+  #dialog-box .speaker { color: var(--accent); font-weight: bold; margin-bottom: 6px; }
+  #dialog-box .line { font-size: 14px; line-height: 1.7; }
+  #dialog-box .close-hint { font-size: 11px; color: #889; margin-top: 8px; }
+
+  /* ---------- Living Map ---------- */
+  #map-overlay { position: fixed; inset: 0; background: rgba(8, 9, 14, 0.96); z-index: 40;
+    display: none; flex-direction: row; }
+  #map-overlay.open { display: flex; }
+  #map-side { width: 250px; min-width: 200px; padding: 14px; overflow-y: auto;
+    border-right: 1px solid #2c3344; font-size: 12px; }
+  #map-side h2 { font-size: 16px; margin-bottom: 4px; color: var(--accent); }
+  #map-side h3 { font-size: 13px; margin: 12px 0 4px; color: #aab; }
+  #map-side label { display: flex; gap: 6px; align-items: center; padding: 2px 0; cursor: pointer; }
+  #map-side .understanding { color: #788; font-size: 11px; margin-left: auto; }
+  #map-canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+  #map-canvas { background: #11131c; border: 1px solid #2c3344; border-radius: 4px;
+    max-width: 100%; max-height: 100%; cursor: crosshair; }
+  #map-canvas.myth-explorer { box-shadow: 0 0 40px rgba(127,180,212,.25) inset, 0 0 24px rgba(127,180,212,.2); }
+  #map-canvas.myth-restorer { box-shadow: 0 0 40px rgba(127,212,150,.25) inset, 0 0 24px rgba(127,212,150,.2); }
+  #map-canvas.myth-seeker { box-shadow: 0 0 40px rgba(176,138,212,.3) inset, 0 0 24px rgba(176,138,212,.2); }
+  #map-canvas.myth-predator { box-shadow: 0 0 40px rgba(212,127,127,.3) inset, 0 0 24px rgba(212,127,127,.2); }
+  #map-canvas.myth-shaper { box-shadow: 0 0 40px rgba(224,164,88,.3) inset, 0 0 24px rgba(224,164,88,.2); }
+  #hypo-list .hypo { background: #161a26; border: 1px solid #2c3344; border-radius: 6px;
+    padding: 8px; margin: 6px 0; }
+  #hypo-list .hypo.accepted { border-color: var(--accent); }
+  #hypo-list .hypo.completed { opacity: .55; }
+  #hypo-list .hypo .h-title { font-weight: bold; font-size: 12px; }
+  #hypo-list .hypo .h-conf { color: #788; font-size: 11px; }
+  #hypo-list button { margin-top: 4px; margin-right: 4px; background: #223; color: var(--ink);
+    border: 1px solid #3a4356; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+  #rumor-log { font-size: 11px; color: #99a; line-height: 1.6; }
+  #rumor-log div { padding: 2px 0; border-bottom: 1px dashed #223; }
+  #map-close { position: absolute; top: 10px; right: 14px; background: var(--paper);
+    border: 1px solid #3a4356; color: var(--ink); border-radius: 6px; padding: 6px 14px;
+    cursor: pointer; z-index: 41; }
+
+  /* ---------- Mobile controls ---------- */
+  #mobile-ui { position: fixed; inset: 0; pointer-events: none; z-index: 20; display: none; }
+  body.touch #mobile-ui { display: block; }
+  #joystick { position: absolute; left: 26px; bottom: 70px; width: 120px; height: 120px;
+    border-radius: 50%; border: 2px solid rgba(232,226,208,.3); pointer-events: auto; }
+  #joystick-knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px;
+    margin: -24px; border-radius: 50%; background: rgba(232,226,208,.35); }
+  .mbtn { position: absolute; pointer-events: auto; background: var(--paper);
+    border: 1px solid #3a4356; color: var(--ink); border-radius: 50%; width: 60px; height: 60px;
+    font-size: 12px; }
+  #btn-scan { right: 30px; bottom: 96px; border-color: var(--accent); }
+  #btn-map { right: 30px; bottom: 170px; }
+  #btn-jump { right: 100px; bottom: 60px; }
+
+  /* ---------- Debug console ---------- */
+  #debug-console { position: fixed; left: 0; right: 0; top: 0; background: rgba(10,12,18,.97);
+    border-bottom: 1px solid #3a4356; z-index: 60; padding: 8px; display: none;
+    font-family: Consolas, monospace; font-size: 12px; }
+  #debug-console.open { display: block; }
+  #debug-log { max-height: 30vh; overflow-y: auto; white-space: pre-wrap; color: #9fb; margin-bottom: 6px; }
+  #debug-input { width: 100%; background: #0d1018; color: #cfe; border: 1px solid #3a4356;
+    padding: 6px; font-family: inherit; }
+
+  /* ---------- Boot screen ---------- */
+  #boot { position: fixed; inset: 0; background: #0b0d14; z-index: 100; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  #boot h1 { font-size: 28px; letter-spacing: 6px; color: var(--accent); }
+  #boot p { color: #99a; font-size: 13px; max-width: 460px; text-align: center; line-height: 1.8; padding: 0 20px;}
+  #boot button { background: #1d2433; color: var(--ink); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 10px 34px; font-size: 16px; cursor: pointer; }
+  #boot .seed-row { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  #boot input { background: #11141d; border: 1px solid #3a4356; color: var(--ink);
+    padding: 6px 10px; border-radius: 6px; width: 160px; }
+
+  @media (max-width: 720px) {
+    #ability-bar { max-width: 96vw; gap: 5px; flex-wrap: wrap; justify-content: center; bottom: 8px; }
+    .ability-slot { width: 38px; min-height: 34px; padding: 6px; justify-content: center; }
+    .ability-label { display: none; }
+    .ability-key { position: absolute; transform: translate(11px, -10px); font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div id="crosshair"></div>
+    <div id="scan-prompt"></div>
+    <div id="toast-zone"></div>
+    <div id="destiny-ribbon"></div>
+    <div id="ability-bar"></div>
+    <div id="hint-corner">點擊畫面鎖定滑鼠（Esc 解鎖） ｜ M 地圖 ｜ E 掃描/互動 ｜ F 狩獵 ｜ ` 除錯</div>
+  </div>
+
+  <div id="dialog-box">
+    <div class="speaker"></div>
+    <div class="line"></div>
+    <div class="close-hint">按 E 或點擊關閉</div>
+  </div>
+
+  <div id="map-overlay">
+    <div id="map-side">
+      <h2>活地圖</h2>
+      <div id="map-title-line" style="color:#aab;font-size:11px;"></div>
+      <h3>資訊層</h3>
+      <div id="layer-toggles"></div>
+      <h3>推論 Hypotheses</h3>
+      <div id="hypo-list"></div>
+      <h3>世界傳聞</h3>
+      <div id="rumor-log"></div>
+    </div>
+    <div id="map-canvas-wrap"><canvas id="map-canvas"></canvas></div>
+    <button id="map-close">關閉 (M)</button>
+  </div>
+
+  <div id="mobile-ui">
+    <div id="joystick"><div id="joystick-knob"></div></div>
+    <button class="mbtn" id="btn-scan">掃描</button>
+    <button class="mbtn" id="btn-map">地圖</button>
+    <button class="mbtn" id="btn-jump">跳</button>
+  </div>
+
+  <div id="debug-console">
+    <div id="debug-log"></div>
+    <input id="debug-input" placeholder="輸入指令，help 查看全部" autocomplete="off" />
+  </div>
+
+  <div id="boot">
+    <h1>活地圖：命運地層</h1>
+    <p>你是一名「地圖修復者」。這個世界不會告訴你它是什麼——它會根據你如何探索它，長出新的命運。掃描、推理、修復、改造；世界會記住，並回應。</p>
+    <div class="seed-row">世界種子 <input id="boot-seed" placeholder="留空 = 隨機" /></div>
+    <button id="boot-start">進入世界</button>
+    <p id="boot-save-hint" style="font-size:11px;"></p>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
