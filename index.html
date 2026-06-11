@@ -50,6 +50,27 @@
   .ability-slot.active { background: #2a4a42; box-shadow: 0 0 10px rgba(127,212,193,.5); }
   #hint-corner { position: absolute; bottom: 12px; right: 12px; font-size: 11px;
     color: rgba(232,226,208,.55); text-align: right; line-height: 1.6; }
+  #display-settings { position: absolute; top: 12px; right: 12px; display: flex;
+    flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: auto; z-index: 12; }
+  #display-settings, #display-settings * { pointer-events: auto; }
+  #display-settings-toggle { width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid #506072; background: rgba(24, 26, 34, 0.9); color: var(--ink);
+    display: grid; place-items: center; cursor: pointer; }
+  #display-settings-toggle:hover, #display-settings-toggle[aria-expanded="true"] {
+    border-color: var(--accent); color: var(--accent);
+  }
+  #display-settings-toggle svg { width: 19px; height: 19px; display: block; }
+  #display-settings-panel { width: 210px; background: var(--paper); border: 1px solid #3a4356;
+    border-radius: 8px; padding: 10px; box-shadow: 0 12px 26px rgba(0,0,0,.28); }
+  #display-settings-panel[hidden] { display: none; }
+  .display-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 12px; margin-bottom: 8px; }
+  #brightness-value { color: var(--accent); font-variant-numeric: tabular-nums; }
+  #brightness-slider { width: 100%; accent-color: var(--accent); }
+  #brightness-reset { margin-top: 8px; width: 100%; background: #1b2330; color: var(--ink);
+    border: 1px solid #435166; border-radius: 6px; padding: 5px 8px; font-size: 12px;
+    cursor: pointer; }
+  #brightness-reset:hover { border-color: var(--accent); }
 
   /* ---------- Dialog ---------- */
   #dialog-box { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
@@ -141,6 +162,24 @@
     <div id="scan-prompt"></div>
     <div id="toast-zone"></div>
     <div id="destiny-ribbon"></div>
+    <div id="display-settings">
+      <button id="display-settings-toggle" type="button" aria-label="顯示設定" aria-expanded="false"
+        aria-controls="display-settings-panel" title="顯示設定">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+      <div id="display-settings-panel" hidden>
+        <div class="display-row">
+          <label for="brightness-slider">亮度</label>
+          <span id="brightness-value">118%</span>
+        </div>
+        <input id="brightness-slider" type="range" min="0.75" max="1.6" step="0.05" value="1.18" />
+        <button id="brightness-reset" type="button">重設</button>
+      </div>
+    </div>
     <div id="ability-bar"></div>
     <div id="hint-corner">點擊畫面鎖定滑鼠（Esc 解鎖） ｜ M 地圖 ｜ E 掃描/互動 ｜ F 狩獵 ｜ ` 除錯</div>
   </div>

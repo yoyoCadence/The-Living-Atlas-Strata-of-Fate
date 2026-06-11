@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ART_COLORS, BIOME_RAMPS } from '../../assets/palettes.js';
+import { ART_COLORS } from '../../assets/palettes.js';
 
 const gradientCache = new Map();
 
@@ -39,7 +39,7 @@ export function createToonMaterial(profile = {}) {
 
 export function createTerrainToonMaterial(biome = 'plains') {
   return createToonMaterial({
-    color: BIOME_RAMPS[biome]?.[1] ?? 0x7a8f54,
+    color: 0xffffff,
     vertexColors: true,
     materialProfile: 'terrain',
     steps: 4

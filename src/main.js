@@ -14,6 +14,7 @@ import { AbilitySystem } from './systems/abilities.js';
 import { WorldResponse } from './systems/worldResponse.js';
 import { LivingMap } from './map/livingMap.js';
 import { HUD } from './ui/hud.js';
+import { DisplaySettingsPanel } from './ui/displaySettings.js';
 import { SaveSystem } from './save/saveSystem.js';
 import { WorldRenderer } from './render/scene.js';
 import { PlayerController } from './player/controller.js';
@@ -42,6 +43,8 @@ function buildGame(seed, savedData = null) {
   game.renderer.scene.add(game.player.mesh);
 
   game.hud = new HUD(game);
+  if (!game.displaySettings) game.displaySettings = new DisplaySettingsPanel(game.renderer);
+  else game.displaySettings.setRenderer(game.renderer);
   game.map = new LivingMap(game);
   game.saver = new SaveSystem(game);
 
@@ -166,10 +169,7 @@ function start(seed, savedData) {
   buildGame(seed, savedData);
   new DebugConsole(game);
   document.getElementById('boot').style.display = 'none';
-  // 進入世界即鎖定滑鼠（沿用按鈕點擊的使用者手勢；觸控裝置略過）
-  if (!('ontouchstart' in window)) {
-    try { document.querySelector('#app canvas')?.requestPointerLock(); } catch { /* 不支援就用點擊鎖定 */ }
-  }
+  // Pointer lock starts when the player clicks the canvas, keeping HUD controls clickable.
 
   // 鍵盤
   window.addEventListener('keydown', (e) => {

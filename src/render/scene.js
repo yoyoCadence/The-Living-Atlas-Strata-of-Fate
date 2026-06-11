@@ -29,14 +29,19 @@ import {
 } from './factories/vfxFactory.js';
 import { PerformanceMonitor } from './utils/performanceMonitor.js';
 import { collectAssetStats, createArtDebugOverlay } from './utils/debugLabels.js';
+import { DEFAULT_DISPLAY_BRIGHTNESS, clampDisplayBrightness } from '../settings/display.js';
 
 export class WorldRenderer {
   constructor(container) {
     this.quality = requestedQualityFromUrl();
+    this.brightness = DEFAULT_DISPLAY_BRIGHTNESS;
+    this.baseToneMappingExposure = 1.06;
+    this.sunBaseIntensity = 2.35;
+    this.hemiBaseIntensity = 1.15;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = this.baseToneMappingExposure * this.brightness;
     this.renderer.shadowMap.enabled = false;
     applyRendererQuality(this.renderer, this.quality);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -48,10 +53,11 @@ export class WorldRenderer {
 
     this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
 
-    this.sun = new THREE.DirectionalLight(ART_COLORS.keyLight, 2.2);
+    this.sun = new THREE.DirectionalLight(ART_COLORS.keyLight, this.sunBaseIntensity * this.brightness);
     this.sun.position.set(80, 120, 40);
     this.scene.add(this.sun);
-    this.scene.add(new THREE.HemisphereLight(0xbcd8ff, 0x47543a, 0.9));
+    this.hemi = new THREE.HemisphereLight(0xc8dcff, 0x5b6846, this.hemiBaseIntensity * this.brightness);
+    this.scene.add(this.hemi);
 
     this.time = 0;
     this.dayPhase = 0.3;
@@ -85,6 +91,22 @@ export class WorldRenderer {
     this.quality = profile;
     this.performance.setProfile(profile);
     applyRendererQuality(this.renderer, profile);
+  }
+
+  setBrightness(value) {
+    this.brightness = clampDisplayBrightness(value);
+    this.applyBrightness(0);
+  }
+
+  applyBrightness(night = 0) {
+    const nightAmount = Math.max(0, Math.min(1, night));
+    this.renderer.toneMappingExposure = this.baseToneMappingExposure * this.brightness;
+    if (this.sun) {
+      this.sun.intensity = this.sunBaseIntensity * this.brightness * (1 - nightAmount * 0.72);
+    }
+    if (this.hemi) {
+      this.hemi.intensity = (this.hemiBaseIntensity + nightAmount * 0.22) * this.brightness;
+    }
   }
 
   build(world, game) {
@@ -149,23 +171,29 @@ export class WorldRenderer {
     const w = this.world;
     const pos = this.terrainGeo.attributes.position;
     const c = new THREE.Color();
+    const rampLight = new THREE.Color();
     const snow = new THREE.Color(0xe8e8f0);
-    const sand = new THREE.Color(0xc8b890);
+    const sand = new THREE.Color(0xd5c59a);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       const h = pos.getY(i);
       const biome = w.biomeAt(x, z);
       const ramp = BIOME_RAMPS[biome];
-      if (ramp) c.set(ramp[1]);
+      if (ramp) {
+        c.set(ramp[1]);
+        rampLight.set(ramp[2] ?? ramp[1]);
+        c.lerp(rampLight, 0.28);
+      }
       else {
         const b = BIOMES[biome] ?? BIOMES.plains;
         c.setRGB(b.color[0], b.color[1], b.color[2]);
+        c.multiplyScalar(1.1);
       }
       if (h > 34) c.lerp(snow, Math.min(1, (h - 34) / 16));
       if (h < 0.6) c.lerp(sand, 0.5);
       const dB = Math.hypot(x - w.dryBasin.x, z - w.dryBasin.z);
-      if (dB < w.dryBasin.r) c.set(w.dryBasin.restored ? 0x4a9a5a : 0xa08a58);
+      if (dB < w.dryBasin.r) c.set(w.dryBasin.restored ? 0x61ad6e : 0xb59d6a);
       colors[i * 3] = c.r;
       colors[i * 3 + 1] = c.g;
       colors[i * 3 + 2] = c.b;
@@ -422,7 +450,7 @@ export class WorldRenderer {
     const sky = skyDay.clone().lerp(skyNight, night);
     this.scene.background = sky;
     this.scene.fog.color = sky;
-    this.sun.intensity = 2.2 * (1 - night * 0.85);
+    this.applyBrightness(night);
     if (this.canopyMat && !this.world.ecoRegions['glow-forest'].silent) {
       this.canopyMat.emissiveIntensity = 0.3 + night * 0.9;
     }
